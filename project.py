@@ -14,6 +14,8 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.models import Sequential
 from keras.layers import Conv2D, MaxPool2D, Flatten, Dense, InputLayer, BatchNormalization, Dropout
 from keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.preprocessing import image
+from tensorflow.keras.applications.resnet50 import preprocess_input, decode_predictions
 import tensorflow as tf
 import matplotlib.pyplot as plt
 import shutil
@@ -27,14 +29,19 @@ imagegen = ImageDataGenerator()
 
 train = imagegen.flow_from_directory("Image_train_apeature/", class_mode="categorical", shuffle=False, batch_size=100, target_size=(64, 64))
 val = imagegen.flow_from_directory("Image_val_apeature/", class_mode="categorical", shuffle=False, batch_size=100, target_size=(64, 64))
-
+predict_aperture = tf.keras.utils.image_dataset_from_directory("Predict_aperture/",shuffle=True,batch_size=100,image_size=(64, 64))
 
 
 train_iso = imagegen.flow_from_directory("Image_train_iso/", class_mode="categorical", shuffle=False, batch_size=100, target_size=(64, 64))
 val_iso = imagegen.flow_from_directory("Image_val_iso/", class_mode="categorical", shuffle=False, batch_size=100, target_size=(64, 64))
 
+predict_iso = tf.keras.utils.image_dataset_from_directory("Predict_iso/", shuffle=True,batch_size=100, image_size=(64, 64))
+
 a = iter(train).next()[0]
 print(a.shape)
+
+
+
 
 
 
@@ -217,6 +224,22 @@ def Imagenet():
 
     model.summary()
     history = model.fit_generator(train_iso, epochs=10,validation_data=val_iso)
+    base_model.trainable = True
+    for layer in base_model.layers[:100]:
+        layer.trainable = False
+    model.compile(loss=tf.keras.losses.BinaryCrossentropy(from_logits=True),
+              optimizer = tf.keras.optimizers.RMSprop(learning_rate=base_learning_rate/10),
+              metrics=['accuracy'])
+
+    history_fine = model.fit(train_iso,
+                         epochs=20,
+                         initial_epoch=history.epoch[-1],
+                         validation_data=val_iso)
+    image_batch, label_batch = predict_iso.as_numpy_iterator().next()
+    predictions = model.predict_on_batch(image_batch).flatten()
+    predictions = tf.nn.sigmoid(predictions)
+    print(predictions)
+
 
     acc =history.history['accuracy']
     val_acc = history.history['val_accuracy']
